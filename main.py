@@ -1,28 +1,30 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
-from transformers import pipeline
-import os
-from datetime import datetime
-import re
+from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
 import whisper
+import os
+import re
+from datetime import datetime
 
 app = FastAPI()
 
-# Serve static files from the 'static' directory
+# Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Set up template directory
+# Templates
 templates = Jinja2Templates(directory="templates")
 
 # Whisper 모델 로드
-transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
+transcriber = whisper.load_model("large")
 
-# NLP 모델 로드 (날짜 인식을 위한 BERT NER 모델)
-ner_model = pipeline("ner", model="dslim/bert-base-NER", grouped_entities=True)
+# mBERT NER 모델 로드
+tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+model = AutoModelForTokenClassification.from_pretrained("bert-base-multilingual-cased")
+ner_pipeline = pipeline("ner", model=model, tokenizer=tokenizer)
 
+# 기본 페이지 경로 설정
 @app.get("/", response_class=HTMLResponse)
 async def get_form(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -35,38 +37,32 @@ async def upload_audio(file: UploadFile = File(...)):
         f.write(await file.read())
 
     try:
-    # 음성 파일에서 텍스트 추출
-        result = transcriber(file_location)
+        # 음성 파일에서 텍스트 추출
+        result = transcriber.transcribe(file_location)
         text = result["text"]
     except Exception as e:
         print("Error in Whisper transcription:", e)
         return {"transcribed_text": "Error processing audio", "positive": False, "date_checked": None}
 
-    try:
-        # NER 모델을 통해 날짜 추출
-        entities = ner_model(text)
-        extracted_date = None
-        for entity in entities:
-            if entity['entity_group'] == 'DATE':
-                extracted_date = entity['word']
-                break
-    except Exception as e:
-        print("Error in NER model:", e)
-        extracted_date = None
+    # 날짜 및 긍정 표현 인식
+    entities = ner_pipeline(text)
+    extracted_date = None
+    for entity in entities:
+        if entity['entity'] == 'DATE':  # 날짜 엔티티 탐지
+            extracted_date = entity['word']
+            break
 
-    # 긍정 표현 확인
-    positive = "먹었어" in text or "먹었다" in text
+    # 유사 표현 리스트
+    positive_keywords = ["먹었어", "먹었다", "먹음", "복용 완료", "약 복용"]
+
+    # 긍정 표현 판단
+    positive = any(keyword in text for keyword in positive_keywords)
 
     # 체크할 날짜 결정
     date_checked = extracted_date if positive and extracted_date else None
 
-    # 파일 삭제 (필요한 경우)
+    # 파일 삭제
     os.remove(file_location)
-
-    # 터미널에 출력
-    print("Transcribed Text:", text)
-    print("Positive Detected:", positive)
-    print("Date Checked:", date_checked)
 
     # 클라이언트로 전송할 결과
     return {
