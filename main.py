@@ -5,8 +5,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from transformers import pipeline
 import os
-from groq import Groq
+from dotenv import load_dotenv
 import asyncio
+from groq import Client
 
 app = FastAPI()
 
@@ -20,9 +21,10 @@ templates = Jinja2Templates(directory="templates")
 transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
 
 # Groq client 설정
-client = Groq(
-    api_key="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"
-)
+load_dotenv
+api_key = os.getenv("api_key")
+
+client = Client(api_key=api_key)
 
 @app.get("/", response_class=HTMLResponse)
 async def get_form(request: Request):
