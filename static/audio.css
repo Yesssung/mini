@@ -7,3 +7,32 @@
     box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1); /* 그림자 */
 
 }
+
+/* 달력 스타일 */
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr); /* 7열 그리드로 구성 */
+    gap: 5px;
+    width: 350px; /* 원하는 너비로 설정 */
+    margin: 20px auto;
+    text-align: center;
+}
+
+.calendar-day, .calendar-header {
+    border: 1px solid #ddd;
+    padding: 15px;
+    position: relative;
+    font-size: 14px;
+}
+
+.calendar-header {
+    font-weight: bold;
+    background-color: #f0f0f0;
+}
+
+.sticker {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 20px;
+}
