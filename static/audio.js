@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("recordButton").onclick = async () => {
     if (!isRecording) {
-      // Start recording
+      // 녹음 시작
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder = new MediaRecorder(stream);
 
@@ -19,12 +19,12 @@ document.addEventListener("DOMContentLoaded", function () {
       isRecording = true;
       document.getElementById("recordButton").innerText = "Stop Recording";
     } else {
-      // Stop recording
+      // 녹음 중지
       mediaRecorder.stop();
       isRecording = false;
       document.getElementById("recordButton").innerText = "Start Recording";
 
-      // Stop the microphone stream
+      // 마이크 중지
       stream.getTracks().forEach((track) => track.stop());
 
       mediaRecorder.onstop = async () => {
@@ -34,21 +34,16 @@ document.addEventListener("DOMContentLoaded", function () {
         const formData = new FormData();
         formData.append("file", audioBlob, "recording.wav");
 
-        // Send audio data to the server
+        // 서버로 오디오 파일 보내기
         const response = await fetch("/upload", {
           method: "POST",
           body: formData,
         });
         const result = await response.json();
 
-        // Display the transcribed text and other results
+        // 결과를 텍스트로 출력하기 
         document.getElementById("transcriptionResult").innerText =
           result.transcribed_text || "No transcription received";
-        document.getElementById("positiveCheck").innerText = result.positive
-          ? "Yes"
-          : "No";
-        document.getElementById("dateCheckValue").innerText =
-          result.date_checked || "N/A";
       };
     }
   };
@@ -63,10 +58,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // FullCalendar 초기화
   var calendarEl = document.getElementById('calendar');
   var calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth',
-      dateClick: function(info) {
-          alert('Clicked on: ' + info.dateStr);
-      }
+    initialView: 'dayGridMonth',
+    dateClick: function (info) {
+      alert('Clicked on: ' + info.dateStr);
+    }
   });
   calendar.render();
 
@@ -106,33 +101,15 @@ document.addEventListener("DOMContentLoaded", function () {
         // 서버 응답 확인
         console.log("Server Response:", result);
 
-        // Display the transcribed text and other results
+        // 결과 출력
         document.getElementById("transcriptionResult").innerText =
           result.transcribed_text || "No transcription received";
-        document.getElementById("positiveCheck").innerText = result.positive
-          ? "Yes"
-          : "No";
-        document.getElementById("dateCheckValue").innerText =
-          result.date_checked || "N/A";
-
-        // Positive and date_checked 값 확인
-        if (result.positive && result.date_checked) {
-          console.log("Positive and date checked. Enabling confirm button.");
-          document.getElementById("confirmButton").disabled = false;
-
-          // Add event to calendar on confirm button click
-          document.getElementById("confirmButton").onclick = function () {
-            calendar.addEvent({
-              title: "✅",  // Emoji for positive confirmation
-              start: result.date_checked,
-              allDay: true
-            });
-            document.getElementById("confirmButton").disabled = true;  // Disable after confirmation
-          };
-        }
       };
     }
   };
+
+
+  
 });
 
 

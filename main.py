@@ -1,30 +1,29 @@
-from fastapi import FastAPI, File, UploadFile, Request
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
-import whisper
+from fastapi import Request
+from transformers import pipeline
 import os
-import re
-from datetime import datetime
+from groq import Groq
+import asyncio
 
 app = FastAPI()
 
-# Serve static files
+# Serve static files from the 'static' directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Templates
+# Set up template directory
 templates = Jinja2Templates(directory="templates")
 
 # Whisper 모델 로드
-transcriber = whisper.load_model("large")
+transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
 
-# mBERT NER 모델 로드
-tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
-model = AutoModelForTokenClassification.from_pretrained("bert-base-multilingual-cased")
-ner_pipeline = pipeline("ner", model=model, tokenizer=tokenizer)
+# Groq client 설정
+client = Groq(
+    api_key="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"
+)
 
-# 기본 페이지 경로 설정
 @app.get("/", response_class=HTMLResponse)
 async def get_form(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -36,39 +35,41 @@ async def upload_audio(file: UploadFile = File(...)):
     with open(file_location, "wb") as f:
         f.write(await file.read())
 
-    try:
-        # 음성 파일에서 텍스트 추출
-        result = transcriber.transcribe(file_location)
-        text = result["text"]
-    except Exception as e:
-        print("Error in Whisper transcription:", e)
-        return {"transcribed_text": "Error processing audio", "positive": False, "date_checked": None}
+    # 음성 파일에서 텍스트 추출
+    result = transcriber(file_location)
+    text = result["text"]
 
-    # 날짜 및 긍정 표현 인식
-    entities = ner_pipeline(text)
-    extracted_date = None
-    for entity in entities:
-        if entity['entity'] == 'DATE':  # 날짜 엔티티 탐지
-            extracted_date = entity['word']
-            break
-
-    # 유사 표현 리스트
-    positive_keywords = ["먹었어", "먹었다", "먹음", "복용 완료", "약 복용"]
-
-    # 긍정 표현 판단
-    positive = any(keyword in text for keyword in positive_keywords)
-
-    # 체크할 날짜 결정
-    date_checked = extracted_date if positive and extracted_date else None
-
-    # 파일 삭제
+    # 파일 삭제 (필요한 경우)
     os.remove(file_location)
 
-    # 클라이언트로 전송할 결과
+    # Groq API로 텍스트 감정 분석 요청
+    completion = client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {
+                "role": "user",
+                "content": f"can you determine if the following sentence includes if the speaker ate medicine or not? if yes, please say positive, if not, response as negative '{text}'"
+            }
+        ],
+        temperature=1,
+        max_tokens=1024,
+        top_p=1,
+        stream=True,
+        stop=None,
+    )
+
+    # 결과 텍스트 생성
+    result_text = ""
+    for chunk in completion:
+        result_text += chunk.choices[0].delta.content or ""
+
+    # 터미널에 출력
+    print("Transcribed Text:", text)
+    print("Sentiment Analysis Result:", result_text)
+
     return {
         "transcribed_text": text,
-        "positive": positive,
-        "date_checked": date_checked
+        "sentiment_analysis_result": result_text
     }
 
 if __name__ == "__main__":
