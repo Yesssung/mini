@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -8,6 +8,9 @@ import os
 from dotenv import load_dotenv
 import asyncio
 from groq import Client
+from datetime import datetime
+from pydantic import BaseModel
+import requests
 
 app = FastAPI()
 
@@ -19,6 +22,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Whisper 모델 로드
 transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
+
 
 # Groq client 설정
 load_dotenv
@@ -50,7 +54,7 @@ async def upload_audio(file: UploadFile = File(...)):
         messages=[
             {
                 "role": "user",
-                "content": f"can you determine if the following sentence includes if the speaker ate medicine or not on the mentioned date? if yes, please say positive, if not, response as negative. I want the response only to be positive or negative with the date. '{text}'"
+                "content": f"can you determine if the following sentence includes if the speaker ate medicine or not on the mentioned date? if yes, please say positive, if not, response as negative. I want the response only to be positive or negative with the date. {text}'"
             }
         ],
         temperature=1,
@@ -74,6 +78,10 @@ async def upload_audio(file: UploadFile = File(...)):
         "sentiment_analysis_result": result_text
     }
 
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+    
